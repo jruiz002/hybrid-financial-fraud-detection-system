@@ -15,14 +15,14 @@ class SupervisedModels:
         # Modelos base
         base_models = [
             ('dt', DecisionTreeClassifier(random_state=42, max_depth=10)),
-            ('nn', MLPClassifier(max_iter=300, random_state=42, hidden_layer_sizes=(32,))),
+            ('nn', MLPClassifier(solver='sgd', max_iter=300, random_state=42, hidden_layer_sizes=(32,))),
         ]
         # SVM es muy lento para stacking por defecto, usamos uno rápido
         
         self.models = {
             'SVM': SVC(probability=True, random_state=42),
             'DecisionTree': DecisionTreeClassifier(random_state=42),
-            'NeuralNetwork': MLPClassifier(max_iter=500, random_state=42),
+            'NeuralNetwork': MLPClassifier(solver='sgd', max_iter=500, random_state=42),
             'Stacking': StackingClassifier(
                 estimators=base_models,
                 final_estimator=LogisticRegression(),

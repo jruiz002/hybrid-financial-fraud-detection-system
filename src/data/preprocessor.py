@@ -28,6 +28,9 @@ class DataPreprocessor:
         df['txn_count_last_1d'] = df.groupby('customer_id')['timestamp'].transform(
             lambda x: x.diff().dt.days <= 1).astype(int)
             
+        # Monto promedio por usuario
+        df['avg_amount'] = df.groupby('customer_id')['amount'].transform('mean')
+            
         return df
 
     def preprocess(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
@@ -42,7 +45,7 @@ class DataPreprocessor:
             df[col] = le.fit_transform(df[col])
             self.label_encoders[col] = le
             
-        features = ['customer_id', 'merchant_id', 'amount', 'location_type', 'hour', 'day_of_week', 'txn_count_last_1d']
+        features = ['customer_id', 'merchant_id', 'amount', 'location_type', 'hour', 'day_of_week', 'txn_count_last_1d', 'avg_amount']
         X = df[features]
         y = df['is_fraud']
         

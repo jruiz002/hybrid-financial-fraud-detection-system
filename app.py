@@ -40,22 +40,22 @@ preprocessor, stacking_model, mdp, bayes = load_models()
 
 # SIDEBAR
 with st.sidebar:
-    st.markdown("<h1 style='text-align: center;'>🛡️ FraudGuard</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>FraudGuard</h1>", unsafe_allow_html=True)
     st.markdown("---")
-    st.markdown("### 🎛️ Control de Simulación")
+    st.markdown("### Control de Simulación")
     start_sim = st.button("▶ Iniciar Monitoreo en Vivo", use_container_width=True, type="primary")
     st.markdown("---")
-    st.markdown("### 🧠 Motor Híbrido Activo")
-    st.success("✅ Capa 1: Stacking Classifier")
-    st.success("✅ Capa 2: Markov Decision Process")
-    st.success("✅ Capa 3: Red Bayesiana")
+    st.markdown("### Motor Híbrido Activo")
+    st.success("Capa 1: Stacking Classifier")
+    st.success("Capa 2: Markov Decision Process")
+    st.success("Capa 3: Red Bayesiana")
     
 if not all([preprocessor, stacking_model, mdp, bayes]):
-    st.error("⚠️ Modelos no encontrados. Por favor corre `python main.py` en tu terminal primero.")
+    st.error("Modelos no encontrados. Por favor corre `python main.py` en tu terminal primero.")
     st.stop()
 
 # MAIN DASHBOARD
-st.title("🏦 Centro de Mando Anti-Fraude (Streaming)")
+st.title("Centro de Mando Anti-Fraude (Streaming)")
 st.markdown("Sistema de detección híbrido evaluando transacciones entrantes con Inteligencia Artificial Explicable.")
 
 # Contenedores vacíos para actualizar dinámicamente
@@ -63,13 +63,13 @@ kpi_container = st.empty()
 col1, col2 = st.columns([1.5, 1])
 
 with col1:
-    st.subheader("📡 Últimas Transacciones (Flujo en Vivo)")
+    st.subheader("Últimas Transacciones (Flujo en Vivo)")
     placeholder_table = st.empty()
-    st.subheader("📉 Explicabilidad IA (SHAP)")
+    st.subheader("Explicabilidad IA (SHAP)")
     placeholder_xai = st.empty()
 
 with col2:
-    st.subheader("⚡ Decisión del Motor en Tiempo Real")
+    st.subheader("Decisión del Motor en Tiempo Real")
     placeholder_decision = st.empty()
 
 df_raw = pd.read_csv("data/raw/transactions.csv")
@@ -78,6 +78,7 @@ streaming_data = df_raw.sample(100, random_state=np.random.randint(0, 1000)).res
 
 if start_sim:
     history = []
+    decisions_xai = {'APPROVE': None, 'REQUIRE_2FA': None, 'DECLINE': None}
     analyzed_count = 0
     blocked_count = 0
     
@@ -104,7 +105,7 @@ if start_sim:
         except Exception:
             pass
             
-        features = ['customer_id', 'merchant_id', 'amount', 'location_type', 'hour', 'day_of_week', 'txn_count_last_1d']
+        features = ['customer_id', 'merchant_id', 'amount', 'location_type', 'hour', 'day_of_week', 'txn_count_last_1d', 'avg_amount']
         X = row_features[features]
         X_scaled = pd.DataFrame(preprocessor.scaler.transform(X), columns=features)
         
@@ -153,8 +154,8 @@ if start_sim:
                     <div class='{risk_color}'>{icon} {mdp_action.replace('_', ' ')}</div>
                     <hr style='border-color: #333;'>
                     <div style='text-align: left;'>
-                        <p><b>🔍 Cliente:</b> {row['customer_id']}</p>
-                        <p><b>💳 Monto:</b> ${row['amount']:.2f}</p>
+                        <p><b>Cliente:</b> {row['customer_id']}</p>
+                        <p><b>Monto:</b> ${row['amount']:.2f}</p>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -167,29 +168,52 @@ if start_sim:
                 st.markdown(f"<div class='metric-card'><div class='title-text'>Red Bayesiana</div><h3 style='margin:0;'>{bayes_prob*100:.1f}%</h3></div>", unsafe_allow_html=True)
             
         # --- ACTUALIZAR XAI ---
+        decisions_xai[mdp_action] = {
+            'X_scaled': X_scaled.copy(),
+            'features': features,
+            'prob_fraud': prob_fraud,
+            'amount': row['amount']
+        }
+        
         with placeholder_xai.container():
-            if prob_fraud > 0.4:
-                try:
-                    dt_model = joblib.load("models/DecisionTree.pkl")
-                    explainer = shap.TreeExplainer(dt_model)
-                    shap_values = explainer.shap_values(X_scaled)
-                    
-                    fig, ax = plt.subplots(figsize=(6, 3))
-                    # Estilo oscuro para matplotlib
-                    plt.style.use('dark_background')
-                    ax.set_facecolor('#0E1117')
-                    fig.patch.set_facecolor('#0E1117')
-                    
-                    shap.waterfall_plot(shap.Explanation(values=shap_values[1][0], 
-                                                         base_values=explainer.expected_value[1], 
-                                                         data=X_scaled.iloc[0], 
-                                                         feature_names=features), show=False)
-                    plt.tight_layout()
-                    st.pyplot(fig)
-                    plt.close()
-                except Exception:
-                    st.info("Generando explicación...")
-            else:
-                st.success("Transacción de bajo riesgo. Comportamiento normal.")
+            tabs = st.tabs(["✅ Aprobadas", "📱 Solicita 2FA", "🚨 Rechazadas"])
+            tab_mapping = {'APPROVE': tabs[0], 'REQUIRE_2FA': tabs[1], 'DECLINE': tabs[2]}
+            
+            for action_key, tab in tab_mapping.items():
+                with tab:
+                    data = decisions_xai[action_key]
+                    if data is None:
+                        st.info(f"Aún no hay transacciones para la decisión: {action_key.replace('_', ' ')}")
+                    else:
+                        st.write(f"**Último Monto:** ${data['amount']:.2f} | **Prob. Fraude (Stacking):** {data['prob_fraud']*100:.1f}%")
+                        
+                        if action_key == 'APPROVE' and data['prob_fraud'] <= 0.4:
+                            st.success("Transacción de bajo riesgo. Comportamiento normal. No requiere justificación gráfica.")
+                        else:
+                            try:
+                                dt_model = joblib.load("models/DecisionTree.pkl")
+                                explainer = shap.TreeExplainer(dt_model)
+                                shap_values = explainer.shap_values(data['X_scaled'])
+                                
+                                fig, ax = plt.subplots(figsize=(6, 3))
+                                # Estilo oscuro para matplotlib
+                                plt.style.use('dark_background')
+                                ax.set_facecolor('#0E1117')
+                                fig.patch.set_facecolor('#0E1117')
+                                
+                                shap.waterfall_plot(shap.Explanation(values=shap_values[1][0], 
+                                                                     base_values=explainer.expected_value[1], 
+                                                                     data=data['X_scaled'].iloc[0], 
+                                                                     feature_names=data['features']), show=False)
+                                plt.tight_layout()
+                                st.pyplot(fig)
+                                plt.close()
+                            except Exception:
+                                if action_key == 'APPROVE':
+                                    st.success("✅ **Resolución:** Transacción aprobada. Comportamiento dentro de los parámetros normales para este cliente.")
+                                elif action_key == 'REQUIRE_2FA':
+                                    st.warning("📱 **Resolución:** Se han detectado patrones inusuales o un comportamiento anómalo moderado. Se recomienda un desafío de autenticación en dos pasos (2FA).")
+                                elif action_key == 'DECLINE':
+                                    st.error("🚨 **Resolución:** Transacción de alto riesgo. Múltiples factores indican alta probabilidad de fraude. La operación ha sido bloqueada preventivamente.")
             
         time.sleep(1.2) # Ritmo de simulación

@@ -1,5 +1,5 @@
 from pgmpy.models import DiscreteBayesianNetwork
-from pgmpy.estimators import BayesianEstimator
+from pgmpy.parameter_estimator import DiscreteBayesianEstimator
 from pgmpy.inference import VariableElimination
 import pandas as pd
 
@@ -44,8 +44,9 @@ class FraudBayesianNetwork:
         df_bayes['hour_bin'] = df_bayes['hour_bin'].astype(str)
         
         # Estimar CPDs usando BDeu score (mucho más robusto que Maximum Likelihood en casos de datos escasos)
+        estimator = DiscreteBayesianEstimator(prior_type="BDeu", equivalent_sample_size=10)
         self.model.fit(df_bayes[['location_type', 'hour_bin', 'amount_bin', 'is_fraud', 'alert_triggered']], 
-                       estimator=BayesianEstimator, prior_type="BDeu", equivalent_sample_size=10)
+                       estimator=estimator)
         
         # Validar consistencia del modelo
         self.model.check_model()
